@@ -19,21 +19,21 @@ type Style struct {
 
 var (
 	styles = []Style{
-		{"reset", "0", false},
-		{"unstyle", "22", false},
-		{"b", "1", false},
-		{"i", "3", false},
-		{"u", "4", false},
-		{"s", "9", false},
-		{"blink", "5", false},
-		{"x", "7", false},
-		{"white", "97", true},
-		{"gray", "37", true},
-		{"red", "31", true},
-		{"green", "32", true},
-		{"cyan", "36", true},
-		{"blue", "34", true},
-		{"yellow", "33", true},
+		{Name: "reset", Code: "0", IsColor: false},
+		{Name: "unstyle", Code: "22", IsColor: false},
+		{Name: "b", Code: "1", IsColor: false},
+		{Name: "i", Code: "3", IsColor: false},
+		{Name: "u", Code: "4", IsColor: false},
+		{Name: "s", Code: "9", IsColor: false},
+		{Name: "blink", Code: "5", IsColor: false},
+		{Name: "x", Code: "7", IsColor: false},
+		{Name: "white", Code: "97", IsColor: true},
+		{Name: "gray", Code: "37", IsColor: true},
+		{Name: "red", Code: "31", IsColor: true},
+		{Name: "green", Code: "32", IsColor: true},
+		{Name: "cyan", Code: "36", IsColor: true},
+		{Name: "blue", Code: "34", IsColor: true},
+		{Name: "yellow", Code: "33", IsColor: true},
 	}
 
 	styleMap = make(map[string]Style)
@@ -122,7 +122,7 @@ func formatValue(v reflect.Value) string {
 	}
 }
 
-func formatString(str any) string {
+func formatString(str interface{}) string {
 	return colorizeKeywords(parseTags(fmt.Sprintf("%v", str)))
 }
 
@@ -133,7 +133,7 @@ func formatBool(v reflect.Value) string {
 	return parseTags("[red][bold]false[/]")
 }
 
-func formatNumber(v any) string {
+func formatNumber(v interface{}) string {
 	return parseTags(fmt.Sprintf("[cyan][bold]%v[/]", v))
 }
 
@@ -176,7 +176,7 @@ func formatStruct(v reflect.Value) string {
 	return result.String()
 }
 
-func Print(args ...any) {
+func Print(args ...interface{}) {
 	var formattedStrings []string
 
 	for _, arg := range args {
@@ -206,26 +206,26 @@ func Print(args ...any) {
 	fmt.Println(strings.Join(formattedStrings, " "))
 }
 
-func logWithPrefix(prefix string, args ...any) {
-	Print(append([]any{prefix}, args...)...)
+func logWithPrefix(prefix string, args ...interface{}) {
+	Print(append([]interface{}{prefix}, args...)...)
 }
 
-func Info(args ...any) {
+func Info(args ...interface{}) {
 	logWithPrefix("[blue][b]INFO:[/b][/blue]", args...)
 }
 
-func Success(args ...any) {
+func Success(args ...interface{}) {
 	logWithPrefix("[green][b]SUCC:[/b][/green]", args...)
 }
 
-func Error(args ...any) {
+func Error(args ...interface{}) {
 	logWithPrefix("[red][b]ERRR:[/b][/red]", args...)
 }
 
-func Warning(args ...any) {
+func Warning(args ...interface{}) {
 	logWithPrefix("[yellow][b]WARN:[/b][/yellow]", args...)
 }
 
-func Debug(args ...any) {
+func Debug(args ...interface{}) {
 	logWithPrefix("[gray][b]DEBUG:[/b][/gray]", args...)
 }
