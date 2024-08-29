@@ -1,3 +1,3 @@
-module github.com/RVFET/rich-go
+module github.com/rvfet/rich-go
 
 go 1.23
