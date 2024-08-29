@@ -168,9 +168,9 @@ func formatStruct(v reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
 	for i := 0; i < v.NumField(); i++ {
-		result.WriteString(fmt.Sprintf(" %s: %s\n",
-			parseTags(v.Type().Field(i).Name),
-			formatValue(v.Field(i))))
+		left_side := parseTags(fmt.Sprintf("[yellow]%s[/]", v.Type().Field(i).Name))
+		right_side := formatValue(v.Field(i))
+		result.WriteString(fmt.Sprintf("  %s: %s,\n", left_side, right_side))
 	}
 	result.WriteString("}")
 	return result.String()
