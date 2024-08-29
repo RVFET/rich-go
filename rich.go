@@ -141,10 +141,10 @@ func formatMap(v reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
 	for _, key := range v.MapKeys() {
-		left_side := formatValue(key)
-		right_side := formatValue(v.MapIndex(key))
+		leftSide := formatValue(key)
+		rightSide := formatValue(v.MapIndex(key))
 
-		result.WriteString(fmt.Sprintf("  \"%s\": %s,\n", left_side, right_side))
+		result.WriteString(fmt.Sprintf("  \"%s\": %s,\n", leftSide, rightSide))
 	}
 	result.WriteString("}")
 	return result.String()
@@ -168,9 +168,9 @@ func formatStruct(v reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
 	for i := 0; i < v.NumField(); i++ {
-		left_side := parseTags(fmt.Sprintf("[yellow]%s[/]", v.Type().Field(i).Name))
-		right_side := formatValue(v.Field(i))
-		result.WriteString(fmt.Sprintf("  %s: %s,\n", left_side, right_side))
+		leftSide := parseTags(fmt.Sprintf("[yellow]%s[/]", v.Type().Field(i).Name))
+		rightSide := formatValue(v.Field(i))
+		result.WriteString(fmt.Sprintf("  %s: %s,\n", leftSide, rightSide))
 	}
 	result.WriteString("}")
 	return result.String()
