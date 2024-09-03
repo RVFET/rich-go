@@ -7,7 +7,6 @@ package rich
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 )
 
@@ -15,6 +14,14 @@ type Style struct {
 	Name    string
 	Code    string
 	IsColor bool
+}
+
+var KeywordMap = map[string]string{
+	"SUCCESS": "green",
+	"ERROR":   "red",
+	"WARNING": "yellow",
+	"INFO":    "cyan",
+	"DEBUG":   "gray",
 }
 
 var (
@@ -39,25 +46,40 @@ var (
 	styleMap = make(map[string]Style)
 )
 
+var formatterMap map[reflect.Kind]func(reflect.Value) string
+
 func init() {
 	for _, style := range styles {
 		styleMap[style.Name] = style
 	}
-}
 
-func getStyle(name string) string {
-	if style, ok := styleMap[name]; ok {
-		return "\033[" + style.Code + "m"
+	formatterMap = map[reflect.Kind]func(reflect.Value) string{
+		reflect.String:  formatString,
+		reflect.Bool:    formatBool,
+		reflect.Float32: formatNumber,
+		reflect.Float64: formatNumber,
+		reflect.Int:     formatNumber,
+		reflect.Int8:    formatNumber,
+		reflect.Int16:   formatNumber,
+		reflect.Int32:   formatNumber,
+		reflect.Int64:   formatNumber,
+		reflect.Uint:    formatNumber,
+		reflect.Uint8:   formatNumber,
+		reflect.Uint16:  formatNumber,
+		reflect.Uint32:  formatNumber,
+		reflect.Uint64:  formatNumber,
+		reflect.Map:     formatMap,
+		reflect.Slice:   formatSlice,
+		reflect.Struct:  formatStruct,
 	}
-	return "\033[37m"
 }
 
 func parseTags(str string) string {
 	var stack []string
 	segments := strings.Split(str, "[")
 
-	for i, segment := range segments {
-		if i == 0 {
+	for index, segment := range segments {
+		if index == 0 {
 			continue
 		}
 		parts := strings.SplitN(segment, "]", 2)
@@ -68,7 +90,9 @@ func parseTags(str string) string {
 
 		for _, tag := range strings.Fields(tags) {
 			tag = strings.ToLower(strings.Trim(tag, "[]"))
-			if strings.HasPrefix(tag, "/") {
+			if tag == "/" {
+				stack = nil
+			} else if strings.HasPrefix(tag, "/") {
 				if len(stack) > 0 {
 					stack = stack[:len(stack)-1]
 				}
@@ -77,7 +101,7 @@ func parseTags(str string) string {
 			}
 		}
 
-		segments[i] = applyStyling(rest, stack)
+		segments[index] = applyStyling(rest, stack)
 	}
 
 	return strings.Join(segments, "")
@@ -87,145 +111,112 @@ func applyStyling(str string, stack []string) string {
 	return fmt.Sprintf("\033[%sm%s", strings.Join(stack, ";"), str)
 }
 
-func colorizeKeywords(input string) string {
-	keywords := map[string]string{
-		"success": getStyle("green"),
-		"error":   getStyle("red"),
-		"warning": getStyle("yellow"),
-		"info":    getStyle("cyan"),
+func formatValue(value reflect.Value) string {
+	if formatter, ok := formatterMap[value.Kind()]; ok {
+		return formatter(value)
 	}
 
-	for keyword, colorCode := range keywords {
-		re := regexp.MustCompile(`(?i)(\b` + keyword + `\b)`)
-		input = re.ReplaceAllStringFunc(input, func(match string) string {
-			return colorCode + match + "\033[0m"
-		})
-	}
-
-	return input
+	return formatString(value)
 }
 
-func formatValue(v reflect.Value) string {
-	switch reflect.TypeOf(v.Interface()).Kind() {
-	case reflect.Float32, reflect.Float64, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return formatNumber(v)
-	case reflect.Map:
-		return formatMap(v)
-	case reflect.Slice:
-		return formatSlice(v)
-	case reflect.Struct:
-		return formatStruct(v)
-	case reflect.Bool:
-		return formatBool(v)
-	default:
-		return formatString(v.Interface())
-	}
+func formatString(str reflect.Value) string {
+	return parseTags(fmt.Sprintf("%v", str))
 }
 
-func formatString(str interface{}) string {
-	return colorizeKeywords(parseTags(fmt.Sprintf("%v", str)))
-}
-
-func formatBool(v reflect.Value) string {
-	if reflect.ValueOf(v.Interface()).Bool() {
+func formatBool(value reflect.Value) string {
+	if reflect.ValueOf(value.Interface()).Bool() {
 		return parseTags("[green][bold]true[/]")
 	}
+
 	return parseTags("[red][bold]false[/]")
 }
 
-func formatNumber(v interface{}) string {
-	return parseTags(fmt.Sprintf("[cyan][bold]%v[/]", v))
+func formatNumber(value reflect.Value) string {
+	return parseTags(fmt.Sprintf("[cyan][bold]%v[/]", value))
 }
 
-func formatMap(v reflect.Value) string {
+func formatMap(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
-	for _, key := range v.MapKeys() {
+	for _, key := range value.MapKeys() {
 		leftSide := formatValue(key)
-		rightSide := formatValue(v.MapIndex(key))
+		rightSide := formatValue(value.MapIndex(key))
 
 		result.WriteString(fmt.Sprintf("  \"%s\": %s,\n", leftSide, rightSide))
 	}
 	result.WriteString("}")
+
 	return result.String()
 }
 
-func formatSlice(v reflect.Value) string {
+func formatSlice(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("[ ")
-	for i := 0; i < v.Len(); i++ {
-		element := v.Index(i)
+	for index := 0; index < value.Len(); index++ { //nolint:intrange
+		element := value.Index(index)
 		result.WriteString(formatValue(element))
-		if i < v.Len()-1 {
+		if index < value.Len()-1 {
 			result.WriteString(", ")
 		}
 	}
 	result.WriteString(" ]")
+
 	return result.String()
 }
 
-func formatStruct(v reflect.Value) string {
+func formatStruct(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
-	for i := 0; i < v.NumField(); i++ {
-		leftSide := parseTags(fmt.Sprintf("[yellow]%s[/]", v.Type().Field(i).Name))
-		rightSide := formatValue(v.Field(i))
+	for index := 0; index < value.NumField(); index++ { //nolint:intrange
+		leftSide := parseTags(fmt.Sprintf("[yellow]%s[/]", value.Type().Field(index).Name))
+		rightSide := formatValue(value.Field(index))
 		result.WriteString(fmt.Sprintf("  %s: %s,\n", leftSide, rightSide))
 	}
 	result.WriteString("}")
+
 	return result.String()
 }
 
-func Print(args ...interface{}) {
-	var formattedStrings []string
+func Print(args ...any) {
+	formattedStrings := make([]string, 0, len(args))
 
 	for _, arg := range args {
-		v := reflect.ValueOf(arg)
-		var formattedArg string
-
-		switch v.Kind() {
-		case reflect.String:
-			formattedArg = formatString(v.String())
-		case reflect.Bool:
-			formattedArg = formatBool(v)
-		case reflect.Float32, reflect.Float64, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			formattedArg = formatNumber(v)
-		case reflect.Map:
-			formattedArg = formatMap(v)
-		case reflect.Slice:
-			formattedArg = formatSlice(v)
-		case reflect.Struct:
-			formattedArg = formatStruct(v)
-		default:
-			formattedArg = parseTags(fmt.Sprintf("%v", arg))
-		}
-
-		formattedStrings = append(formattedStrings, formattedArg)
+		formattedStrings = append(formattedStrings, formatValue(reflect.ValueOf(arg)))
 	}
 
 	fmt.Println(strings.Join(formattedStrings, " "))
 }
 
-func logWithPrefix(prefix string, args ...interface{}) {
-	Print(append([]interface{}{prefix}, args...)...)
+func logWithPrefix(prefix string, args ...any) {
+	var pad string
+	if len(pad) < 10 {
+		pad += strings.Repeat(" ", 8-len(prefix))
+	}
+
+	if color, ok := KeywordMap[prefix]; ok {
+		prefix = fmt.Sprintf("[%s][b]%s[/]", color, prefix)
+	}
+	prefix += pad
+
+	Print(append([]any{prefix}, args...)...)
 }
 
-func Info(args ...interface{}) {
-	logWithPrefix("[blue][b]INFO:[/b][/blue]", args...)
+func Info(args ...any) {
+	logWithPrefix("INFO", args...)
 }
 
-func Success(args ...interface{}) {
-	logWithPrefix("[green][b]SUCC:[/b][/green]", args...)
+func Success(args ...any) {
+	logWithPrefix("SUCCESS", args...)
 }
 
-func Error(args ...interface{}) {
-	logWithPrefix("[red][b]ERRR:[/b][/red]", args...)
+func Error(args ...any) {
+	logWithPrefix("ERROR", args...)
 }
 
-func Warning(args ...interface{}) {
-	logWithPrefix("[yellow][b]WARN:[/b][/yellow]", args...)
+func Warning(args ...any) {
+	logWithPrefix("WARNING", args...)
 }
 
-func Debug(args ...interface{}) {
-	logWithPrefix("[gray][b]DEBUG:[/b][/gray]", args...)
+func Debug(args ...any) {
+	logWithPrefix("DEBUG", args...)
 }
