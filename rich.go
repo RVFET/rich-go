@@ -194,7 +194,7 @@ func logWithPrefix(prefix string, args ...any) {
 	}
 
 	if color, ok := KeywordMap[prefix]; ok {
-		prefix = fmt.Sprintf("[%s][b]%s[/]", color, prefix)
+		prefix = fmt.Sprintf("[%s]%s[/]", color, prefix)
 	}
 	prefix += pad
 
