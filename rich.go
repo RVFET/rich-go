@@ -7,6 +7,7 @@ package rich
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -22,6 +23,29 @@ var KeywordMap = map[string]string{
 	"WARNING": "yellow",
 	"INFO":    "cyan",
 	"DEBUG":   "gray",
+}
+
+var IconMap = map[string]string{
+	"mail":                 "",
+	"github.com":           "󰊤",
+	"github.dev":           "󰊤",
+	"github.io":            "󰊤",
+	"facebook.com":         "󰈌",
+	"fb.me":                "󰈌",
+	"telegram.org":         "",
+	"t.me":                 "",
+	"google.com":           "󰊭",
+	"youtube.com":          "󰗃",
+	"yt.be":                "󰗃",
+	"youtu.be":             "󰗃",
+	"instagram.com":        "󰋾",
+	"ig.me":                "󰋾",
+	"translate.google.com": "󰗊",
+	"openai.com":           "󰧑",
+	"go.dev":               "󰟓",
+	"golang.org":           "󰟓",
+	"python.org":           "",
+	"spotify.com":          "󰓇",
 }
 
 var (
@@ -120,6 +144,20 @@ func formatValue(value reflect.Value) string {
 }
 
 func formatString(str reflect.Value) string {
+	urlRe := `((http|https):\/\/)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(:[0-9]{1,5})?(\/[^:;\|\s\t]+)?`
+	emailRe := `([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`
+	if matched, _ := regexp.MatchString(urlRe, fmt.Sprintf("%v", str)); matched {
+		for domain, icon := range IconMap {
+			if strings.Contains(fmt.Sprintf("%v", str), domain) {
+				return parseTags(fmt.Sprintf("[cyan]%v %v[/]", icon, str))
+			}
+		}
+	}
+
+	if matched, _ := regexp.MatchString(emailRe, fmt.Sprintf("%v", str)); matched {
+		return parseTags(fmt.Sprintf("[cyan]%v %v[/]", IconMap["mail"], str))
+	}
+
 	return parseTags(fmt.Sprintf("%v", str))
 }
 
@@ -139,10 +177,12 @@ func formatMap(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
 	for _, key := range value.MapKeys() {
-		leftSide := formatValue(key)
-		rightSide := formatValue(value.MapIndex(key))
+		leftSideType := reflect.ValueOf(key.Interface()).Kind()
+		rightSideType := reflect.ValueOf(value.MapIndex(key).Interface()).Kind()
+		leftSide := parseTags(fmt.Sprintf("[yellow]%s[/]", formatterMap[leftSideType](key)))
+		rightSide := formatterMap[rightSideType](value.MapIndex(key))
 
-		result.WriteString(fmt.Sprintf("  \"%s\": %s,\n", leftSide, rightSide))
+		result.WriteString(fmt.Sprintf("  %s: %s,\n", leftSide, rightSide))
 	}
 	result.WriteString("}")
 
@@ -152,9 +192,11 @@ func formatMap(value reflect.Value) string {
 func formatSlice(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("[ ")
-	for index := 0; index < value.Len(); index++ { //nolint:intrange
+	for index := range make([]struct{}, value.Len()) {
 		element := value.Index(index)
-		result.WriteString(formatValue(element))
+		elementType := reflect.ValueOf(element.Interface()).Kind()
+		result.WriteString(formatterMap[elementType](element))
+
 		if index < value.Len()-1 {
 			result.WriteString(", ")
 		}
@@ -167,7 +209,7 @@ func formatSlice(value reflect.Value) string {
 func formatStruct(value reflect.Value) string {
 	var result strings.Builder
 	result.WriteString("{\n")
-	for index := 0; index < value.NumField(); index++ { //nolint:intrange
+	for index := range value.NumField() {
 		leftSide := parseTags(fmt.Sprintf("[yellow]%s[/]", value.Type().Field(index).Name))
 		rightSide := formatValue(value.Field(index))
 		result.WriteString(fmt.Sprintf("  %s: %s,\n", leftSide, rightSide))
